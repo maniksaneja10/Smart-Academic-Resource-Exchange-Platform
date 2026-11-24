@@ -1,0 +1,6 @@
+item_id,title,course_code,price,condition,hostel_block,seller_contact,status
+RES-101,Python Think Python 2e,2026CSAE100,450,Good,C,9811045210,Available
+RES-102,Computational Thinking Notes,2026CSAE100,250,New,D,9871230984,Available
+RES-103,Python Lab Workbook,2026CSAE100,550,Fair,C,9811987654,Reserved
+RES-104,Thomas Calculus 14th Ed,2026MASE101,350,Good,B,9810011223,Available
+RES-105,Digital Electronics Lab Kit,2026ECSE102,600,New,C,9899887766,Available

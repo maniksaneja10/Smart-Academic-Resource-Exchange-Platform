@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Academic Resource Exchange | Bennett University</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-indigo-950 text-white shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight">Smart Academic Resource Exchange</h1>
+        <p class="text-xs text-indigo-300">Bennett University • Course 2026CSAE100 • Group 5 (Batch 21 S11)</p>
+      </div>
+      <div class="flex gap-2 text-xs flex-wrap justify-center">
+        <span class="bg-indigo-800 px-3 py-1 rounded-full">CSV Persistent Storage</span>
+        <span class="bg-emerald-700 px-3 py-1 rounded-full">40/30/20/10 Matcher</span>
+        <span id="mode-badge" class="bg-slate-600 px-3 py-1 rounded-full">Detecting mode…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Server-down banner (hidden when API is available) -->
+  <div id="offline-banner" class="hidden bg-amber-50 border-b border-amber-300 text-amber-800 text-xs px-4 py-2 text-center">
+    ⚠️ Running in <strong>offline / read-only mode</strong> — data loaded directly from <code>resources.csv</code>.
+    Add/Delete/Toggle actions require the backend server (<code>python run.py</code>).
+  </div>
+
+  <!-- Tab Navigation -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 flex gap-6 overflow-x-auto">
+      <button onclick="switchTab('inventory')" id="tab-inventory" class="tab-btn py-3.5 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-600">
+        1. Inventory &amp; Search
+      </button>
+      <button onclick="switchTab('matcher')" id="tab-matcher" class="tab-btn py-3.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800">
+        2. Smart Compatibility Matcher
+      </button>
+      <button onclick="switchTab('add')" id="tab-add" class="tab-btn py-3.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800">
+        3. List New Resource
+      </button>
+      <button onclick="switchTab('report')" id="tab-report" class="tab-btn py-3.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800">
+        4. Analytics Report
+      </button>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+
+    <!-- SECTION 1: INVENTORY & SEARCH -->
+    <section id="view-inventory" class="space-y-4">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <input type="text" id="filter-keyword" placeholder="Search title (e.g. Python)..." class="border rounded-lg px-3 py-2 text-sm focus:outline-indigo-600" />
+        <input type="text" id="filter-course" placeholder="Course Code (e.g. 2026CSAE100)" class="border rounded-lg px-3 py-2 text-sm uppercase focus:outline-indigo-600" />
+        <input type="number" id="filter-price" placeholder="Max Price (₹)" class="border rounded-lg px-3 py-2 text-sm focus:outline-indigo-600" />
+        <div class="flex gap-2">
+          <button onclick="fetchInventory()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg px-4 py-2">Filter</button>
+          <button onclick="resetFilters()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg px-3 py-2">Reset</button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100 text-slate-600 text-xs uppercase border-b">
+              <th class="p-3">ID</th>
+              <th class="p-3">Course</th>
+              <th class="p-3">Resource Title</th>
+              <th class="p-3">Price (₹)</th>
+              <th class="p-3">Condition</th>
+              <th class="p-3">Hostel</th>
+              <th class="p-3">Contact</th>
+              <th class="p-3">Status</th>
+              <th class="p-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-tbody" class="divide-y divide-slate-100 text-sm">
+            <tr><td colspan="9" class="p-6 text-center text-slate-400 text-sm">Loading data…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION 2: SMART COMPATIBILITY MATCHER -->
+    <section id="view-matcher" class="hidden space-y-6">
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="text-base font-bold text-slate-800 mb-1">Weighted Smart Compatibility Matcher (0–100%)</h2>
+        <p class="text-xs text-slate-500 mb-4">Evaluates Available items: Course Match (40%) + Budget Fit (30%) + Hostel Proximity (20%) + Condition (10%)</p>
+        <form onsubmit="runMatcher(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Target Course Code *</label>
+            <input type="text" id="match-course" value="2026CSAE100" required class="w-full border rounded-lg px-3 py-2 text-sm uppercase" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Max Budget (INR) *</label>
+            <input type="number" id="match-budget" value="450" min="0" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Your Hostel Block *</label>
+            <select id="match-hostel" class="w-full border rounded-lg px-3 py-2 text-sm">
+              <option value="A">Block A</option>
+              <option value="B">Block B</option>
+              <option value="C" selected>Block C</option>
+              <option value="D">Block D</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg px-4 py-2">
+              Compute Ranked Matches
+            </button>
+          </div>
+        </form>
+      </div>
+      <div id="match-results" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </section>
+
+    <!-- SECTION 3: ADD NEW RESOURCE -->
+    <section id="view-add" class="hidden max-w-2xl mx-auto">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="text-lg font-bold text-slate-800 mb-4">Post New Academic Resource Listing</h2>
+        <div id="add-server-warn" class="hidden mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+          ⚠️ Server is offline. Start <code>python run.py</code> to save new listings.
+        </div>
+        <form onsubmit="createResource(event)" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Resource Title *</label>
+              <input type="text" id="add-title" placeholder="e.g., Digital Logic Lab Kit" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Course Code *</label>
+              <input type="text" id="add-course" placeholder="e.g., 2026CSAE100" required class="w-full border rounded-lg px-3 py-2 text-sm uppercase" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Asking Price (₹) *</label>
+              <input type="number" id="add-price" min="0" step="0.01" placeholder="350" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Condition *</label>
+              <select id="add-condition" class="w-full border rounded-lg px-3 py-2 text-sm">
+                <option value="New">New (10/10 pts)</option>
+                <option value="Good" selected>Good (8/10 pts)</option>
+                <option value="Fair">Fair (5/10 pts)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Hostel Block *</label>
+              <select id="add-hostel" class="w-full border rounded-lg px-3 py-2 text-sm">
+                <option value="A">Block A</option>
+                <option value="B">Block B</option>
+                <option value="C" selected>Block C</option>
+                <option value="D">Block D</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Seller 10-Digit Contact Number *</label>
+            <input type="text" id="add-contact" maxlength="10" pattern="\d{10}" placeholder="9811045210" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div id="add-feedback" class="text-sm font-medium"></div>
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg text-sm">
+            Save Listing to CSV
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- SECTION 4: ANALYTICS REPORT -->
+    <section id="view-report" class="hidden space-y-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="kpi-cards"></div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h3 class="text-base font-bold text-slate-800 mb-3">Course-Wise Resource Distribution</h3>
+        <table class="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr class="bg-slate-100 text-slate-600 text-xs uppercase border-b">
+              <th class="p-3">Course Code</th>
+              <th class="p-3">Total Listed</th>
+              <th class="p-3">Available</th>
+              <th class="p-3">Avg. Resale Price (₹)</th>
+            </tr>
+          </thead>
+          <tbody id="report-tbody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // ─── Mode Detection ────────────────────────────────────────────────────────
+    const API_BASE = "http://127.0.0.1:8000/api";
+    let USE_API = false;           // will be set after ping
+    let LOCAL_INVENTORY = [];      // cached when in offline mode
+
+    // Embedded fallback data (matches resources.csv exactly)
+    const SEED_DATA = [
+      { item_id:"RES-101", title:"Python Think Python 2e",       course_code:"2026CSAE100", price:450,  condition:"Good", hostel_block:"C", seller_contact:"9811045210", status:"Available" },
+      { item_id:"RES-102", title:"Computational Thinking Notes", course_code:"2026CSAE100", price:250,  condition:"New",  hostel_block:"D", seller_contact:"9871230984", status:"Available" },
+      { item_id:"RES-103", title:"Python Lab Workbook",          course_code:"2026CSAE100", price:550,  condition:"Fair", hostel_block:"C", seller_contact:"9811987654", status:"Reserved"  },
+      { item_id:"RES-104", title:"Thomas Calculus 14th Ed",      course_code:"2026MASE101", price:350,  condition:"Good", hostel_block:"B", seller_contact:"9810011223", status:"Available" },
+      { item_id:"RES-105", title:"Digital Electronics Lab Kit",  course_code:"2026ECSE102", price:600,  condition:"New",  hostel_block:"C", seller_contact:"9899887766", status:"Available" },
+    ];
+
+    async function detectMode() {
+      try {
+        const r = await fetch(API_BASE + "/resources", { signal: AbortSignal.timeout(1500) });
+        if (r.ok) {
+          USE_API = true;
+          document.getElementById("mode-badge").textContent = "🟢 Live API Mode";
+          document.getElementById("mode-badge").className = "bg-emerald-600 px-3 py-1 rounded-full";
+          return;
+        }
+      } catch (_) {}
+
+      // API unreachable – try to load CSV via fetch (works when served by any HTTP server)
+      USE_API = false;
+      document.getElementById("mode-badge").textContent = "🟡 Offline / CSV Mode";
+      document.getElementById("mode-badge").className = "bg-amber-600 px-3 py-1 rounded-full";
+      document.getElementById("offline-banner").classList.remove("hidden");
+      document.getElementById("add-server-warn").classList.remove("hidden");
+
+      // Try fetching the CSV file from same directory
+      try {
+        const csvResp = await fetch("resources.csv");
+        if (csvResp.ok) {
+          const text = await csvResp.text();
+          LOCAL_INVENTORY = parseCSV(text);
+        } else {
+          LOCAL_INVENTORY = [...SEED_DATA];
+        }
+      } catch (_) {
+        LOCAL_INVENTORY = [...SEED_DATA];
+      }
+    }
+
+    // ─── CSV Parser ────────────────────────────────────────────────────────────
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) return [];
+      const headers = lines[0].split(",").map(h => h.trim());
+      return lines.slice(1).map(line => {
+        const vals = line.split(",").map(v => v.trim());
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = vals[i] ?? ""; });
+        obj.price = parseFloat(obj.price) || 0;
+        return obj;
+      });
+    }
+
+    // ─── Tab Switcher ──────────────────────────────────────────────────────────
+    function switchTab(tab) {
+      ["inventory", "matcher", "add", "report"].forEach(t => {
+        document.getElementById(`view-${t}`).classList.add("hidden");
+        const btn = document.getElementById(`tab-${t}`);
+        btn.classList.remove("border-indigo-600", "text-indigo-600", "font-semibold");
+        btn.classList.add("border-transparent", "text-slate-500", "font-medium");
+      });
+      document.getElementById(`view-${tab}`).classList.remove("hidden");
+      const active = document.getElementById(`tab-${tab}`);
+      active.classList.add("border-indigo-600", "text-indigo-600", "font-semibold");
+      active.classList.remove("border-transparent", "text-slate-500");
+      if (tab === "inventory") fetchInventory();
+      if (tab === "report")    fetchReport();
+    }
+
+    // ─── Inventory / Table ─────────────────────────────────────────────────────
+    async function fetchInventory() {
+      let items;
+
+      if (USE_API) {
+        const kw    = document.getElementById("filter-keyword").value;
+        const crs   = document.getElementById("filter-course").value;
+        const price = document.getElementById("filter-price").value;
+        const params = new URLSearchParams();
+        if (kw)    params.append("keyword",   kw);
+        if (crs)   params.append("course",    crs);
+        if (price) params.append("max_price", price);
+        try {
+          const res = await fetch(`${API_BASE}/resources?${params.toString()}`);
+          items = await res.json();
+        } catch (_) {
+          items = [];
+        }
+      } else {
+        // Filter locally
+        const kw    = document.getElementById("filter-keyword").value.trim().toLowerCase();
+        const crs   = document.getElementById("filter-course").value.trim().toUpperCase();
+        const price = parseFloat(document.getElementById("filter-price").value) || Infinity;
+        items = LOCAL_INVENTORY.filter(item => {
+          if (kw  && !item.title.toLowerCase().includes(kw)) return false;
+          if (crs && item.course_code.toUpperCase() !== crs) return false;
+          if (item.price > price) return false;
+          return true;
+        });
+      }
+
+      renderTable(items);
+    }
+
+    function renderTable(items) {
+      const tbody = document.getElementById("inventory-tbody");
+      if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">No items found.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = items.map(item => {
+        const price = typeof item.price === "number" ? item.price : parseFloat(item.price) || 0;
+        return `
+        <tr class="hover:bg-slate-50">
+          <td class="p-3 font-mono font-semibold text-indigo-700">${item.item_id}</td>
+          <td class="p-3 font-medium">${item.course_code}</td>
+          <td class="p-3">${item.title}</td>
+          <td class="p-3 font-semibold">₹${price.toFixed(2)}</td>
+          <td class="p-3">${item.condition}</td>
+          <td class="p-3">Block ${item.hostel_block}</td>
+          <td class="p-3 font-mono text-xs">${item.seller_contact}</td>
+          <td class="p-3">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+              item.status === "Available" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+            }">${item.status}</span>
+          </td>
+          <td class="p-3 text-right space-x-2">
+            <button onclick="toggleStatus('${item.item_id}', '${item.status === "Available" ? "Reserved" : "Available"}')"
+              class="text-xs bg-slate-200 hover:bg-slate-300 px-2.5 py-1 rounded font-medium ${USE_API ? '' : 'opacity-50 cursor-not-allowed'}"
+              ${USE_API ? '' : 'disabled title="Start server to enable"'}>
+              Toggle
+            </button>
+            <button onclick="deleteResource('${item.item_id}')"
+              class="text-xs bg-rose-100 hover:bg-rose-200 text-rose-700 px-2.5 py-1 rounded font-medium ${USE_API ? '' : 'opacity-50 cursor-not-allowed'}"
+              ${USE_API ? '' : 'disabled title="Start server to enable"'}>
+              Delete
+            </button>
+          </td>
+        </tr>`;
+      }).join("");
+    }
+
+    function resetFilters() {
+      document.getElementById("filter-keyword").value = "";
+      document.getElementById("filter-course").value  = "";
+      document.getElementById("filter-price").value   = "";
+      fetchInventory();
+    }
+
+    async function toggleStatus(id, nextStatus) {
+      if (!USE_API) return;
+      await fetch(`${API_BASE}/resources/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      fetchInventory();
+    }
+
+    async function deleteResource(id) {
+      if (!USE_API) return;
+      await fetch(`${API_BASE}/resources/${id}`, { method: "DELETE" });
+      fetchInventory();
+    }
+
+    // ─── Compatibility Matcher (runs locally too) ──────────────────────────────
+    const ADJACENT_HOSTELS = { A:new Set(["B"]), B:new Set(["A","C"]), C:new Set(["B","D"]), D:new Set(["C"]) };
+
+    function extractDept(code) { return [...code.toUpperCase()].filter(c => /[A-Z]/.test(c)).join(""); }
+
+    function calcScore(item, targetCourse, budget, buyerHostel) {
+      const ic = item.course_code.toUpperCase(), tc = targetCourse.toUpperCase();
+      const coursePts = ic === tc ? 40 : (extractDept(ic) === extractDept(tc) && extractDept(tc) ? 15 : 0);
+      const price = parseFloat(item.price);
+      let budgetPts = 0;
+      if (price <= budget) budgetPts = 30;
+      else if (budget > 0 && price <= budget * 1.25) budgetPts = +(30 * (1 - (price - budget) / (0.25 * budget))).toFixed(1);
+      const sh = item.hostel_block.toUpperCase(), bh = buyerHostel.toUpperCase();
+      const hostelPts = sh === bh ? 20 : (ADJACENT_HOSTELS[bh]?.has(sh) ? 10 : 5);
+      const condPts = { New:10, Good:8, Fair:5 }[item.condition] ?? 5;
+      return { total: +(coursePts + budgetPts + hostelPts + condPts).toFixed(1), course:coursePts, budget:budgetPts, hostel:hostelPts, condition:condPts };
+    }
+
+    async function runMatcher(e) {
+      e.preventDefault();
+      const targetCourse = document.getElementById("match-course").value.trim().toUpperCase();
+      const budget       = parseFloat(document.getElementById("match-budget").value);
+      const buyerHostel  = document.getElementById("match-hostel").value;
+
+      let matches = [];
+      if (USE_API) {
+        const res = await fetch(`${API_BASE}/match`, {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ target_course: targetCourse, max_budget: budget, buyer_hostel: buyerHostel })
+        });
+        matches = await res.json();
+        matches = matches.map(m => ({ ...m, score: m.score, breakdown: m.breakdown }));
+      } else {
+        // Local computation
+        matches = LOCAL_INVENTORY
+          .filter(item => item.status === "Available")
+          .map(item => {
+            const s = calcScore(item, targetCourse, budget, buyerHostel);
+            return { ...item, score: s.total, breakdown: { course: s.course, budget: s.budget, hostel: s.hostel, condition: s.condition } };
+          })
+          .sort((a, b) => b.score - a.score);
+      }
+
+      const container = document.getElementById("match-results");
+      if (!matches.length) {
+        container.innerHTML = `<p class="text-sm text-slate-500 col-span-2">No Available listings found.</p>`;
+        return;
+      }
+      container.innerHTML = matches.map((m, idx) => {
+        const price = parseFloat(m.price);
+        return `
+        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 ${idx === 0 ? "border-emerald-500" : "border-indigo-500"}">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Rank #${idx+1} • ${m.item_id}</span>
+              <h3 class="text-base font-bold text-slate-800">${m.title}</h3>
+              <p class="text-xs text-slate-500">${m.course_code} • Hostel ${m.hostel_block} • Cond: ${m.condition}</p>
+            </div>
+            <div class="text-right">
+              <span class="text-2xl font-extrabold text-emerald-600">${m.score}%</span>
+              <p class="text-xs font-semibold text-slate-700">₹${price.toFixed(2)}</p>
+            </div>
+          </div>
+          <div class="mt-3 pt-3 border-t border-slate-100 grid grid-cols-4 gap-2 text-center text-xs">
+            <div class="bg-slate-50 p-1.5 rounded">Course: <b>${m.breakdown.course}/40</b></div>
+            <div class="bg-slate-50 p-1.5 rounded">Budget: <b>${m.breakdown.budget}/30</b></div>
+            <div class="bg-slate-50 p-1.5 rounded">Hostel: <b>${m.breakdown.hostel}/20</b></div>
+            <div class="bg-slate-50 p-1.5 rounded">Cond: <b>${m.breakdown.condition}/10</b></div>
+          </div>
+          <div class="mt-3 flex justify-between items-center text-xs">
+            <span class="text-slate-600">Seller Contact: <b>${m.seller_contact}</b></span>
+            ${USE_API ? `<button onclick="toggleStatus('${m.item_id}','Reserved');runMatcher(event)" class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700">Reserve Now</button>` : `<span class="text-amber-600">Start server to reserve</span>`}
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    // ─── Add New Resource ──────────────────────────────────────────────────────
+    async function createResource(e) {
+      e.preventDefault();
+      const feedback = document.getElementById("add-feedback");
+      if (!USE_API) {
+        feedback.className = "text-sm font-medium text-amber-600";
+        feedback.textContent = "⚠️ Server offline. Run 'python run.py' then refresh.";
+        return;
+      }
+      const payload = {
+        title:          document.getElementById("add-title").value,
+        course_code:    document.getElementById("add-course").value,
+        price:          parseFloat(document.getElementById("add-price").value),
+        condition:      document.getElementById("add-condition").value,
+        hostel_block:   document.getElementById("add-hostel").value,
+        seller_contact: document.getElementById("add-contact").value
+      };
+      const res = await fetch(`${API_BASE}/resources`, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        feedback.className = "text-sm font-medium text-rose-600";
+        feedback.textContent = "Validation Error: " + (err.detail?.[0]?.msg || "Invalid input.");
+        return;
+      }
+      const created = await res.json();
+      feedback.className = "text-sm font-medium text-emerald-600";
+      feedback.textContent = `✅ Added ${created.item_id} (${created.title}) to resources.csv.`;
+      e.target.reset();
+    }
+
+    // ─── Analytics Report ──────────────────────────────────────────────────────
+    async function fetchReport() {
+      let data;
+      if (USE_API) {
+        const res = await fetch(`${API_BASE}/report`);
+        data = await res.json();
+      } else {
+        // Compute locally from LOCAL_INVENTORY
+        const inv   = LOCAL_INVENTORY;
+        const total = inv.length;
+        const avail = inv.filter(i => i.status === "Available").length;
+        const avg   = total ? +(inv.reduce((s,i) => s + parseFloat(i.price), 0) / total).toFixed(2) : 0;
+        const stats = {};
+        inv.forEach(item => {
+          const c = item.course_code;
+          if (!stats[c]) stats[c] = { course_code:c, listed:0, available:0, total_price:0 };
+          stats[c].listed++;
+          if (item.status === "Available") stats[c].available++;
+          stats[c].total_price += parseFloat(item.price);
+        });
+        data = {
+          total_listings: total, available_count: avail,
+          reserved_count: total - avail, average_price: avg,
+          estimated_savings_pct: 50.4,
+          course_breakdown: Object.values(stats).map(s => ({
+            course_code: s.course_code, listed: s.listed, available: s.available,
+            avg_price: +(s.total_price / s.listed).toFixed(2)
+          }))
+        };
+      }
+
+      document.getElementById("kpi-cards").innerHTML = `
+        <div class="bg-white p-4 rounded-xl border shadow-sm">
+          <p class="text-xs text-slate-500">Total Listings</p>
+          <p class="text-2xl font-bold text-slate-800">${data.total_listings}</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border shadow-sm">
+          <p class="text-xs text-slate-500">Available / Reserved</p>
+          <p class="text-2xl font-bold text-emerald-600">${data.available_count} <span class="text-sm text-amber-600">/ ${data.reserved_count}</span></p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border shadow-sm">
+          <p class="text-xs text-slate-500">Avg. Resale Price</p>
+          <p class="text-2xl font-bold text-indigo-700">₹${data.average_price}</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border shadow-sm">
+          <p class="text-xs text-slate-500">Est. Student Savings</p>
+          <p class="text-2xl font-bold text-emerald-600">${data.estimated_savings_pct}%</p>
+        </div>`;
+      document.getElementById("report-tbody").innerHTML = data.course_breakdown.map(c => `
+        <tr>
+          <td class="p-3 font-semibold">${c.course_code}</td>
+          <td class="p-3">${c.listed}</td>
+          <td class="p-3">${c.available}</td>
+          <td class="p-3">₹${c.avg_price.toFixed(2)}</td>
+        </tr>`).join("");
+    }
+
+    // ─── Init ──────────────────────────────────────────────────────────────────
+    (async () => {
+      await detectMode();
+      fetchInventory();
+    })();
+  </script>
+</body>
+</html>
